@@ -24,9 +24,8 @@ jobs:
           ref: a565bdfc98198561aceb56dc7de54f6efe7227cc
           path: rust-front
       - run: sudo xcode-select -s /Applications/Xcode_27.1.app/Contents/Developer
-      - uses: dtolnay/rust-toolchain@1.85
-        with:
-          targets: aarch64-apple-ios-sim
+      # `just msrv` runs `cargo +1.85`, which needs a toolchain named 1.85.
+      - run: rustup toolchain install 1.85 --profile minimal --target aarch64-apple-ios-sim
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
