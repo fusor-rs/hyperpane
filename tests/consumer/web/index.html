@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>hyperpane consumer</title>
+  <link rel="icon" href="data:,">
+  <style>
+    body {
+      font: 18px/1.5 system-ui;
+      margin: 0;
+      padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+        max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    }
+    button { font: inherit; padding: 0.5rem 1rem; }
+  </style>
+</head>
+<body>
+  <App state="{{ Consumer::new(&owner) }}">
+    <main>
+      <nav><a id="home" data-fusor-link href="/">Home</a> <a id="details" data-fusor-link href="/details">Details</a></nav>
+      <Router>
+        <Route path="/"><h1 id="page">Home</h1></Route>
+        <Route path="/details"><h1 id="page">Details</h1></Route>
+      </Router>
+      <button id="clicks" aria-pressed="{{ state.clicks.get() > 0 }}" on:click="state.clicks.update(|count| *count += 1)">Clicks: {{ state.clicks.get() }}</button>
+      <p id="worker">{{ state.worker_status() }}</p>
+      <p id="fetch">{{ state.fetch_status() }}</p>
+    </main>
+  </App>
+</body>
+</html>

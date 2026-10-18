@@ -1,0 +1,31 @@
+[package]
+name = "hyperpane-shell"
+description = "The hyperpane host: a fusor publication in WKWebView on macOS and iOS"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[[bin]]
+name = "hyperpane-host"
+path = "src/main.rs"
+doc = false
+
+[dependencies]
+http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tao.workspace = true
+webbrowser.workspace = true
+wry.workspace = true
+
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+clap.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
