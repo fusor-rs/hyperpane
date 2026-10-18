@@ -21,6 +21,10 @@ msrv:
     cargo +1.85 test --workspace --locked
     cargo +1.85 check -p hyperpane-shell --target aarch64-apple-ios-sim --locked
 
+# Downloads the tools fusor builds with (wasm-bindgen and others) once.
+setup:
+    {{fusor}} install --manifest-path tests/consumer/Cargo.toml --locked
+
 consumer-app:
     {{fusor}} build --manifest-path tests/consumer/Cargo.toml --locked
 

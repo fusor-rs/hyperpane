@@ -23,8 +23,9 @@ rustup target add aarch64-apple-ios-sim aarch64-apple-ios wasm32-unknown-unknown
 rustup toolchain install 1.85 --profile minimal --target aarch64-apple-ios-sim
 ```
 
-`just doctor` checks the Xcode, simulator and Rust parts and prints the command
-that fixes each missing one.
+Then, with fusor checked out next to this repository (below), run `just setup`
+once; it downloads the tools fusor builds with. `just doctor` checks the Xcode,
+simulator and Rust parts and prints the command that fixes each missing one.
 
 ### fusor next to hyperpane
 
