@@ -162,9 +162,9 @@ impl Host {
     }
 }
 
-/// wry's iOS web view background is the system background colour, which is
+/// wry's iOS web view background is the system background color, which is
 /// what an empty `UILaunchScreen` shows, so there is no flash before the
-/// first paint. Setting a fixed colour here would ignore dark mode.
+/// first paint. Setting a fixed color here would ignore dark mode.
 fn web_view(
     served: Served,
     config: RunConfig,

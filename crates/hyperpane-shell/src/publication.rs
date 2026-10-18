@@ -20,6 +20,7 @@ const INDEX: &str = "index.html";
 const SERVED_BASE_PATH: &str = "/";
 
 /// The content types fusor's own development and preview servers send.
+/// fusor documents them nowhere else: https://github.com/fusor-rs/fusor/issues/67
 const CONTENT_TYPES: &[(&str, &str)] = &[
     ("html", "text/html; charset=utf-8"),
     ("js", "text/javascript; charset=utf-8"),
@@ -245,9 +246,11 @@ fn decode_path(url_path: &str) -> Option<PathBuf> {
         return None;
     }
     let path = PathBuf::from(decoded);
-    path.components()
-        .all(|part| matches!(part, Component::Normal(name) if !name.to_string_lossy().starts_with('.')))
-        .then_some(path)
+    let visible = path.components().all(|part| match part {
+        Component::Normal(name) => !name.to_string_lossy().starts_with('.'),
+        _ => false,
+    });
+    visible.then_some(path)
 }
 
 #[cfg(test)]

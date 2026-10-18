@@ -1,7 +1,7 @@
 [workspace]
 members = ["crates/hyperpane-shell", "crates/hyperpane-cli"]
 exclude = ["tests/consumer"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
