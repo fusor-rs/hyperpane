@@ -17,6 +17,10 @@ const SCHEME_ORIGIN: &str = "hyperpane://localhost";
 /// Removes the tap highlight and the long-press callout, which mark a page as
 /// a website rather than an app.
 const FEEL_SCRIPT: &str = include_str!("feel.js");
+/// Turns links to a new window into navigations of this one, which the
+/// navigation policy then keeps or sends to the system browser. wry 0.57
+/// handles new-window requests on macOS only, so on iOS they do nothing.
+const LINKS_SCRIPT: &str = include_str!("links.js");
 
 enum Command {
     Reload,
@@ -172,6 +176,7 @@ fn web_view(
     let mut builder = WebViewBuilder::new()
         .with_url(served.start_url())
         .with_initialization_script(FEEL_SCRIPT)
+        .with_initialization_script(LINKS_SCRIPT)
         .with_allow_link_preview(false)
         .with_on_web_content_process_terminate_handler(move || {
             // Fails only after the event loop has exited, when nothing is left to reload.

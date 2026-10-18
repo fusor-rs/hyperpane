@@ -9,6 +9,7 @@ use std::{
 pub(crate) const HOST_BINARY: &str = "hyperpane-host";
 pub(crate) const IOS_SIMULATOR_TARGET: &str = "aarch64-apple-ios-sim";
 /// The oldest iOS a bundle declares; the host is compiled for the same release.
+/// fusor states no oldest WebKit: https://github.com/fusor-rs/fusor/issues/66
 pub(crate) const MINIMUM_IOS: &str = "17.0";
 /// The CLI builds the host from the checkout it was built from.
 const WORKSPACE_MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.toml");
