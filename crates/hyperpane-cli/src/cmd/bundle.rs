@@ -180,32 +180,24 @@ fn simulator_sdk_version() -> Result<String, Error> {
 
 /// `UILaunchScreen` must be present, even empty, or iOS shows the app in a
 /// 320 by 480 point compatibility window.
+const INFO_PLIST: &str = include_str!("bundle/Info.plist");
+
 fn info_plist(app: &AppOptions, sdk_version: &str) -> String {
     let name = escape_xml(&app.name);
-    let bundle_id = &app.bundle_id;
-    format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleIdentifier</key><string>{bundle_id}</string>
-  <key>CFBundleExecutable</key><string>{HOST_BINARY}</string>
-  <key>CFBundleName</key><string>{name}</string>
-  <key>CFBundleDisplayName</key><string>{name}</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>{APP_VERSION}</string>
-  <key>CFBundleVersion</key><string>{BUILD_NUMBER}</string>
-  <key>LSRequiresIPhoneOS</key><true/>
-  <key>MinimumOSVersion</key><string>{MINIMUM_IOS}</string>
-  <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
-  <key>CFBundleSupportedPlatforms</key><array><string>iPhoneSimulator</string></array>
-  <key>DTPlatformName</key><string>iphonesimulator</string>
-  <key>DTSDKName</key><string>iphonesimulator{sdk_version}</string>
-  <key>UILaunchScreen</key><dict/>
-</dict>
-</plist>
-"#
-    )
+    let values = [
+        ("{{bundle_id}}", app.bundle_id.as_str()),
+        ("{{executable}}", HOST_BINARY),
+        ("{{name}}", &name),
+        ("{{app_version}}", APP_VERSION),
+        ("{{build_number}}", BUILD_NUMBER),
+        ("{{minimum_ios}}", MINIMUM_IOS),
+        ("{{sdk_version}}", sdk_version),
+    ];
+    values
+        .iter()
+        .fold(INFO_PLIST.to_owned(), |plist, (placeholder, value)| {
+            plist.replace(placeholder, value)
+        })
 }
 
 fn escape_xml(text: &str) -> String {
