@@ -95,6 +95,12 @@ The simulator shares the Mac's loopback interface, but the host's loopback
 listener for shared-memory publications runs inside the app, as it must on a
 device.
 
+The test application in `tests/consumer`, running in the iPhone Simulator:
+
+<p align="center">
+  <img src="ios-consumer.png" alt="The test application running in the iPhone Simulator" width="230">
+</p>
+
 ## How the app feels
 
 The host sets, on both platforms:

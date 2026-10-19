@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 40 560 560">
+  <title>hyperpane</title>
+  <g>
+    <path fill="#DF5036" d="M128 80H560L440 200H200V440L80 560V128Q80 80 128 80Z"/>
+    <path fill="#A83228" d="M400 280H536Q560 280 560 304V536Q560 560 536 560H280V400Z"/>
+  </g>
+</svg>
