@@ -1,6 +1,7 @@
 use crate::{
     host::{IOS_SIMULATOR_TARGET, MINIMUM_IOS},
-    project, report, tool,
+    project, report,
+    utils::output,
 };
 use clap::Args;
 use hyperpane_shell::{Error, ErrorKind};
@@ -132,12 +133,6 @@ fn rust_targets() -> Result<String, String> {
 
 fn fusor_version() -> Result<String, String> {
     at_least(&output(project::fusor().arg("--version"))?, MINIMUM_FUSOR)
-}
-
-fn output(command: &mut Command) -> Result<String, String> {
-    tool::capture(command, ErrorKind::Toolchain, "")
-        .map(|stdout| stdout.trim().to_owned())
-        .map_err(|error| error.message)
 }
 
 /// `description` ends with a dotted version, such as `Xcode 27.1`.

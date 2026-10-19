@@ -4,6 +4,7 @@ mod host;
 mod project;
 mod report;
 mod tool;
+mod utils;
 
 use clap::Parser;
 use std::process::ExitCode;

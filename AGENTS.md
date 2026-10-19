@@ -23,8 +23,8 @@ it does; don't invent scope, features or options beyond the task.
   command reuses another's logic from there (`run --ios` calls `bundle`).
   `cmd/mod.rs` declares the commands and the options they share. Outside
   `cmd/` are only what several commands use: building the application
-  (`project.rs`) and the host (`host.rs`), output (`report.rs`) and running
-  tools (`tool.rs`).
+  (`project.rs`) and the host (`host.rs`), output (`report.rs`), running
+  tools (`tool.rs`), and small general-purpose functions (`utils/`).
 - `tests/consumer`: a separate workspace holding a small fusor application.
   `crates/hyperpane-cli/tests/consumer.rs` runs it through the CLI on macOS and
   in the iOS Simulator.
@@ -116,8 +116,10 @@ remove them before you finish.
   pinned versions. Reference the constant in logic and in messages.
 - No speculative generality: no trait with one implementation, generic with one
   instantiation, option or parameter without a caller that needs it today.
-- No trivial wrappers, and no `utils`, `helpers`, `common` or `misc` modules or
+- No trivial wrappers, and no `helpers`, `common` or `misc` modules or
   `Manager`, `Helper`, `Util`, `Data`, `Info`, `Impl` or `Wrapper` type names.
+  Small general-purpose functions that a command needs but that belong to no
+  command go in the CLI's `src/utils/` module.
 
 ### Readability
 
