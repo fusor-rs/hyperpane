@@ -143,7 +143,7 @@ else:
 ```
 
 `kind` is one of `configuration`, `publication`, `host`, `web-view`,
-`loopback`, `toolchain`, `simulator` and `bundle`. Standard error carries
+`loopback`, `toolchain`, `simulator`, `bundle` and `upgrade`. Standard error carries
 diagnostics for people, such as a failed loopback request, and is not part of
 the contract.
 
@@ -161,7 +161,7 @@ The host takes one configuration: where the pages come from, a name, and the
 scripts to inject. On macOS it comes from the command line:
 
 ```text
-hyperpane-host [--name <name>] [--script <file>]... (<publication-dir> | --url <address>)
+hyperpane-host [--name <name>] [--script <file>]... (<directory> | --url <address>)
 ```
 
 An iOS app receives no arguments, so there it comes from `hyperpane.json` next

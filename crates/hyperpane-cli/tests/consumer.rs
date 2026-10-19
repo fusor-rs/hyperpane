@@ -1,10 +1,14 @@
-//! Runs the fusor application in `tests/consumer` through `hyperpane run`
-//! and checks what the injected probe observed. Build the publication first
-//! with `just consumer-app`; `just consumer` and `just consumer-ios` do both.
+//! Builds and runs the fusor application in `tests/consumer` through
+//! `hyperpane run` and checks what the injected probe observed. `just consumer`
+//! and `just consumer-ios` point `FUSOR_BIN` at the sibling fusor checkout.
 use serde_json::{Value, json};
 use std::{fs, process::Command};
 
-const PUBLICATION: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/consumer/dist");
+const MANIFEST: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/consumer/Cargo.toml"
+);
+const DIST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/consumer/dist");
 const PROBE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/consumer/probe.js");
 const TIMEOUT_SECONDS: &str = "180";
 
@@ -12,7 +16,8 @@ fn run_consumer(platform_arguments: &[&str]) -> Vec<Value> {
     let output = Command::new(env!("CARGO_BIN_EXE_hyperpane"))
         .args([
             "run",
-            PUBLICATION,
+            "--manifest-path",
+            MANIFEST,
             "--script",
             PROBE,
             "--timeout",
@@ -37,8 +42,7 @@ fn run_consumer(platform_arguments: &[&str]) -> Vec<Value> {
 
 fn assert_consumer_ran(events: &[Value], device: &str) {
     let manifest: Value =
-        serde_json::from_slice(&fs::read(format!("{PUBLICATION}/.fusor-output.json")).unwrap())
-            .unwrap();
+        serde_json::from_slice(&fs::read(format!("{DIST}/.fusor-output.json")).unwrap()).unwrap();
     let event = |name: &str| {
         events
             .iter()

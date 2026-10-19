@@ -1,8 +1,8 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// The boundary at which hyperpane failed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ErrorKind {
     Configuration,
@@ -13,10 +13,11 @@ pub enum ErrorKind {
     Toolchain,
     Simulator,
     Bundle,
+    Upgrade,
 }
 
 /// A failure, what caused it and what to do about it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Error {
     pub kind: ErrorKind,
     pub message: String,

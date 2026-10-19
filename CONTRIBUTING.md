@@ -38,10 +38,10 @@ workspace/
 ```
 
 `tests/consumer/Cargo.toml` takes fusor's crates by path from
-`../../../rust-front/crates/`, and the justfile runs fusor's CLI from the same
-checkout with `cargo run --manifest-path ../rust-front/Cargo.toml`, so the
-crates and the CLI that builds them always come from the same source. A
-`fusor` installed on your `PATH` is not used by the checks. CI checks out
+`../../../rust-front/crates/`. The justfile builds fusor's CLI from the same
+checkout and points hyperpane at it with `FUSOR_BIN`, so the crates and the CLI
+that builds them always come from the same source. A `fusor` installed on your
+`PATH` is not used by the checks. CI checks out
 fusor-rs/fusor at a pinned commit into the same place; moving that pin means
 refreshing `tests/consumer/Cargo.lock` in the same change.
 
@@ -57,8 +57,8 @@ Run `just check` before considering a change complete:
 | --- | --- |
 | `just lint` | rustfmt, workspace tests, Clippy for macOS and the iOS Simulator, a check for the iOS device target, Clippy for the consumer's Wasm, rustdoc |
 | `just msrv` | the tests and the iOS Simulator check on Rust 1.85 |
-| `just consumer` | builds `tests/consumer` with fusor, then runs it in a macOS window |
-| `just consumer-ios` | builds `tests/consumer`, then bundles, installs and runs it in the iOS Simulator |
+| `just consumer` | `hyperpane run --manifest-path tests/consumer/Cargo.toml`: builds the consumer with fusor and runs it in a macOS window |
+| `just consumer-ios` | the same with `--ios`: builds, bundles, installs and runs it in the iOS Simulator |
 
 The consumer tests launch real WebKit. `just consumer` opens a window for a few
 seconds; `just consumer-ios` uses a booted iPhone simulator, or boots the first
@@ -69,6 +69,50 @@ tests. The loopback mode for shared-memory publications is not in the consumer
 test, because building one needs fusor's nightly toolchain; a change to it
 needs a manual run on both platforms of a fusor application with a
 `#[fusor_worker::task(pool)]` task, reported in the pull request.
+
+## Releasing
+
+Every crate shares one version: `version` under `[workspace.package]` in the
+root `Cargo.toml`. A release publishes `hyperpane-shell` and `hyperpane-cli` at
+that version and attaches an archive for Macs with Apple silicon.
+
+1. Bump the version and the `=x.y.z` pin of `hyperpane-shell` under
+   `[workspace.dependencies]`, run `just check` so `Cargo.lock` follows, and
+   merge that to `main` with CI passing.
+2. On GitHub, publish a release whose tag is the version with a `v`, such as
+   `v0.2.0`, on that commit.
+
+The [Release workflow](.github/workflows/release.yml) then runs Check, checks
+that the tag matches the version and runs `just archive`, `just archive-check`
+and `just upgrade-check` on the `xcode-27` runner:
+
+- `just archive` builds the CLI and the macOS host, builds the iOS Simulator
+  host through the CLI's own build path, and packages them as
+  `hyperpane-VERSION-aarch64-apple-darwin.tar.gz`, holding `bin/hyperpane`,
+  `hosts/<target>/hyperpane-host`, `LICENSE` and `README.md`, with a `.sha256`
+  file.
+- `just archive-check` installs that archive with [install.sh](install.sh) from
+  the local files (`HYPERPANE_DOWNLOAD_BASE`), checks the installed version,
+  assembles an app with the installed CLI and checks that it carries the
+  shipped host, and checks that a corrupt download is refused.
+- `just upgrade-check` builds the next patch version from a copy of the
+  checkout, serves both archives and a release description from local files
+  (`HYPERPANE_RELEASE_URL`), and checks that `hyperpane upgrade` refuses an
+  incomplete release, upgrades a release installation to the new version and
+  its hosts, and then reports it current.
+
+Once the archive passes, the workflow attaches it to the release and publishes
+the crates to crates.io from the `crates-io` environment, whose
+`CARGO_REGISTRY_TOKEN` secret needs the `publish-new` and `publish-update`
+scopes. It verifies the packaged workspace first and skips crates already
+published at this version, so a rerun finishes a release that stopped halfway.
+After both, it attaches `install.sh`, which marks the release complete; the
+installer's URL is the latest release's `install.sh`, and `hyperpane upgrade`
+offers a release only once it is attached.
+
+Running the workflow by hand from the Actions tab builds and checks the archive
+and keeps it as a workflow artifact, publishing nothing. Both recipes also run
+locally on a Mac with Xcode 27.
 
 ## fusor gaps
 

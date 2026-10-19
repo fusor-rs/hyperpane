@@ -1,5 +1,10 @@
-use crate::{AppOptions, bundle, host, report, simulator::Simulator};
+mod simulator;
+
+use super::{AppOptions, bundle};
+use crate::{host, project::Project, report};
+use clap::Args;
 use hyperpane_shell::{Error, ErrorKind};
+use simulator::Simulator;
 use std::{
     ffi::OsString,
     io::{BufRead, BufReader},
@@ -12,14 +17,49 @@ use std::{
 
 const HOST_REMEDY: &str = "read the host's error event above";
 
-/// Opens the host in a macOS window. `page` is a publication directory, or
-/// `--url` and a development server address.
-pub(crate) fn mac(
-    page: &[OsString],
-    app: &AppOptions,
-    timeout: Option<Duration>,
-) -> Result<(), Error> {
-    let mut command = Command::new(host::locate(app.host_binary.as_deref(), None)?);
+#[derive(Args)]
+pub(crate) struct Run {
+    #[command(flatten)]
+    project: Project,
+    /// Show a development server in a macOS window instead
+    #[arg(long, conflicts_with_all = ["manifest_path", "dist", "ios"])]
+    url: Option<String>,
+    /// Build, install and launch the app in the iOS Simulator
+    #[arg(long)]
+    ios: bool,
+    /// The simulator to use, by name or UDID
+    #[arg(long, requires = "ios")]
+    simulator: Option<String>,
+    /// Fail unless the page reports within this many seconds
+    #[arg(long)]
+    timeout: Option<u64>,
+    #[command(flatten)]
+    app: AppOptions,
+}
+
+impl Run {
+    pub(super) fn run(self) -> Result<(), Error> {
+        let timeout = self.timeout.map(Duration::from_secs);
+        report::banner(if self.ios {
+            "iOS Simulator"
+        } else {
+            "macOS window"
+        });
+        if let Some(url) = self.url {
+            return mac(&["--url".into(), url.into()], &self.app, timeout);
+        }
+        let dist = self.project.built()?;
+        if self.ios {
+            return ios(&dist, &self.app, self.simulator.as_deref(), timeout);
+        }
+        mac(&[dist.into()], &self.app, timeout)
+    }
+}
+
+/// Opens the host in a macOS window. `page` is the directory `fusor build`
+/// wrote, or `--url` and a development server address.
+fn mac(page: &[OsString], app: &AppOptions, timeout: Option<Duration>) -> Result<(), Error> {
+    let mut command = Command::new(host::locate(app.host_binary.as_deref(), host::MAC_TARGET)?);
     command.args(page).arg("--name").arg(&app.name);
     for script in &app.scripts {
         command.arg("--script").arg(script);
@@ -31,22 +71,29 @@ pub(crate) fn mac(
             HOST_REMEDY,
         )
     })?;
+    report::done(&format!("Opened {}", app.name));
     relay(child, timeout, || Ok(()))
 }
 
-/// Bundles the publication, installs it in the iOS Simulator and launches it.
-pub(crate) fn ios(
-    publication: &Path,
+/// Bundles the output, installs it in the iOS Simulator and launches it.
+fn ios(
+    dist: &Path,
     app: &AppOptions,
     simulator: Option<&str>,
     timeout: Option<Duration>,
 ) -> Result<(), Error> {
-    let bundle = bundle::ios(publication, app, &std::env::temp_dir().join("hyperpane"))?;
+    let bundle = bundle::ios(dist, app, &std::env::temp_dir().join("hyperpane"))?;
     let simulator = Simulator::select(simulator)?;
+    let booting = report::step(&format!("Booting {simulator}"));
     simulator.boot()?;
+    booting.done(&format!("Booted {simulator}"));
+    let installing = report::step(&format!("Installing {}.app", app.name));
     simulator.install(&bundle)?;
-    report::step(&format!("launching {}", app.bundle_id));
+    installing.done(&format!("Installed {}.app", app.name));
     let console = simulator.launch(&app.bundle_id)?;
+    report::done(&format!("Launched {} on {simulator}", app.name));
+    report::field("App", &app.bundle_id);
+    report::field("UDID", simulator.udid());
     relay(console, timeout, || simulator.terminate(&app.bundle_id))
 }
 

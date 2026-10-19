@@ -1,7 +1,9 @@
 # iOS
 
-`hyperpane run <publication> --ios` and `hyperpane bundle <publication> --ios
---out <dir>` turn a fusor publication into an iOS app for the simulator. There
+`hyperpane run --ios` and `hyperpane bundle --ios --out <dir>` build a fusor
+application with `fusor build` and turn its output into an iOS app for the
+simulator. `--manifest-path` names the application; `--dist` skips the build
+and uses a directory fusor already wrote. There
 is no Xcode project: the CLI assembles the bundle itself, and the simulator
 installs and runs it unsigned.
 
@@ -15,8 +17,11 @@ IPHONEOS_DEPLOYMENT_TARGET=17.0 cargo build --release --locked \
   --target aarch64-apple-ios-sim -p hyperpane-shell --bin hyperpane-host
 ```
 
-The CLI runs this from the hyperpane checkout it was built in, and
-`--host-binary <path>` replaces it with an executable you built. tao's event
+Release archives ship this executable, built that way, and the CLI uses it.
+A CLI built from a checkout builds it from that checkout; one installed from
+crates.io installs the `hyperpane-shell` crate of its own version with Cargo,
+once, into `~/.hyperpane/cache`. `--host-binary <path>` replaces all of these
+with an executable you built. tao's event
 loop calls `UIApplicationMain`, so the host is an ordinary Rust program with a
 `main` function on both platforms. UIKit has no application object until that
 loop runs, so the host creates its window and web view on the loop's first
@@ -69,17 +74,19 @@ are stored inline:
 
 `run --ios`:
 
-1. checks the publication (base path `/`, manifest version);
+1. builds the application with fusor and checks its output (base path `/`,
+   manifest version);
 2. builds the host and assembles the bundle;
 3. picks a simulator: the one named by `--simulator <name or UDID>`, otherwise a
    booted iPhone, otherwise the first iPhone of the newest iOS runtime;
 4. boots it if needed and waits (`xcrun simctl bootstatus <udid> -b`);
 5. installs the bundle (`simctl install`) and launches it with
    `simctl launch --console --terminate-running-process`;
-6. relays the app's standard output, the host's JSON lines in
-   [consumption.md](consumption.md), until the app exits.
+6. shows the app's events until the app exits, and writes the host's JSON
+   lines in [consumption.md](consumption.md) to standard output when it is not
+   a terminal.
 
-`simctl` prints `<bundle id>: <process id>` among those lines. With
+`simctl` prints `<bundle id>: <process id>` among those lines; it appears dimmed. With
 `--timeout <seconds>`, the CLI terminates the app and fails if it has not
 exited in time; the consumer test uses this. Without it, the CLI returns when
 the app exits.

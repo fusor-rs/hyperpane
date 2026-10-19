@@ -1,8 +1,10 @@
+use super::AppOptions;
 use crate::{
-    AppOptions,
     host::{self, HOST_BINARY, IOS_SIMULATOR_TARGET, MINIMUM_IOS},
-    tool,
+    project::Project,
+    report, tool,
 };
+use clap::Args;
 use hyperpane_shell::{
     BUNDLE_CONFIG, Error, ErrorKind, Publication, RunConfig, Source, read_script,
 };
@@ -18,11 +20,36 @@ const PACKAGE_TYPE: &str = "APPL????";
 const APP_VERSION: &str = "1.0";
 const BUILD_NUMBER: &str = "1";
 
-/// Builds the host for the iOS Simulator and assembles `<name>.app` in `out`,
-/// replacing an app that hyperpane assembled there before.
-pub(crate) fn ios(publication: &Path, app: &AppOptions, out: &Path) -> Result<PathBuf, Error> {
-    Publication::open(publication)?;
+#[derive(Args)]
+pub(crate) struct Bundle {
+    #[command(flatten)]
+    project: Project,
+    /// Bundle for the iOS Simulator
+    #[arg(long, required = true)]
+    ios: bool,
+    /// The directory that receives <name>.app
+    #[arg(long)]
+    out: PathBuf,
+    #[command(flatten)]
+    app: AppOptions,
+}
+
+impl Bundle {
+    pub(super) fn run(self) -> Result<(), Error> {
+        report::banner("iOS Simulator bundle");
+        let bundle = ios(&self.project.built()?, &self.app, &self.out)?;
+        report::field("Bundle", &bundle.display().to_string());
+        Ok(())
+    }
+}
+
+/// Builds the host for the iOS Simulator and assembles `<name>.app` in `out`
+/// from `dist`, the directory `fusor build` wrote, replacing an app that
+/// hyperpane assembled there before.
+pub(super) fn ios(dist: &Path, app: &AppOptions, out: &Path) -> Result<PathBuf, Error> {
+    Publication::open(dist)?;
     validate(app)?;
+    validate_out(dist, out)?;
     let config = RunConfig {
         source: Source::Publication(BUNDLE_PUBLICATION.into()),
         name: app.name.clone(),
@@ -32,17 +59,19 @@ pub(crate) fn ios(publication: &Path, app: &AppOptions, out: &Path) -> Result<Pa
             .map(|path| read_script(path))
             .collect::<Result<_, _>>()?,
     };
-    let host = host::locate(app.host_binary.as_deref(), Some(IOS_SIMULATOR_TARGET))?;
+    let host = host::locate(app.host_binary.as_deref(), IOS_SIMULATOR_TARGET)?;
     let info = info_plist(app, &simulator_sdk_version()?);
     let bundle = out.join(format!("{}.app", app.name));
+    let assembling = report::step(&format!("Assembling {}.app", app.name));
     remove_previous(&bundle)?;
-    write_bundle(&bundle, &host, &info, &config, publication).map_err(|error| {
+    write_bundle(&bundle, &host, &info, &config, dist).map_err(|error| {
         Error::new(
             ErrorKind::Bundle,
             format!("cannot write {}: {error}", bundle.display()),
             "check that the output directory is writable and has free space",
         )
     })?;
+    assembling.done(&format!("Assembled {}.app", app.name));
     Ok(bundle)
 }
 
@@ -51,7 +80,7 @@ fn write_bundle(
     host: &Path,
     info: &str,
     config: &RunConfig,
-    publication: &Path,
+    dist: &Path,
 ) -> io::Result<()> {
     fs::create_dir_all(bundle)?;
     fs::copy(host, bundle.join(HOST_BINARY))?;
@@ -61,7 +90,7 @@ fn write_bundle(
         bundle.join(BUNDLE_CONFIG),
         serde_json::to_vec_pretty(config)?,
     )?;
-    copy_directory(publication, &bundle.join(BUNDLE_PUBLICATION))
+    copy_directory(dist, &bundle.join(BUNDLE_PUBLICATION))
 }
 
 /// The name becomes the bundle's directory name. Apple allows letters,
@@ -86,6 +115,34 @@ fn validate(app: &AppOptions) -> Result<(), Error> {
         ErrorKind::Bundle,
         format!("{:?} is not a valid bundle identifier", app.bundle_id),
         "use reverse-DNS letters, digits, hyphens and periods, such as build.fusor.example",
+    ))
+}
+
+/// The bundle copies `dist`, so a bundle written inside it would copy itself
+/// without end.
+fn validate_out(dist: &Path, out: &Path) -> Result<(), Error> {
+    let resolve = |path: &Path| {
+        fs::create_dir_all(path)
+            .and_then(|()| path.canonicalize())
+            .map_err(|error| {
+                Error::new(
+                    ErrorKind::Bundle,
+                    format!("cannot use {}: {error}", path.display()),
+                    "pass a writable --out directory",
+                )
+            })
+    };
+    if !resolve(out)?.starts_with(resolve(dist)?) {
+        return Ok(());
+    }
+    Err(Error::new(
+        ErrorKind::Bundle,
+        format!(
+            "{} is inside {}, which the bundle copies",
+            out.display(),
+            dist.display()
+        ),
+        "pass an --out directory outside the directory that `fusor build` wrote",
     ))
 }
 

@@ -1,7 +1,8 @@
 use crate::{
     host::{IOS_SIMULATOR_TARGET, MINIMUM_IOS},
-    report, tool,
+    project, report, tool,
 };
+use clap::Args;
 use hyperpane_shell::{Error, ErrorKind};
 use serde::Deserialize;
 use std::process::Command;
@@ -56,22 +57,28 @@ struct Runtime {
     platform: String,
 }
 
-/// Prints one line per check and fails when any check fails.
-pub(crate) fn run() -> Result<(), Error> {
-    let mut failed = 0;
-    for (name, probe, remedy) in CHECKS {
-        let outcome = probe();
-        report::check(name, &outcome, remedy);
-        failed += usize::from(outcome.is_err());
+#[derive(Args)]
+pub(crate) struct Doctor;
+
+impl Doctor {
+    /// Prints one line per check and fails when any check fails.
+    pub(super) fn run(self) -> Result<(), Error> {
+        report::banner("doctor");
+        let mut failed = 0;
+        for (name, probe, remedy) in CHECKS {
+            let outcome = probe();
+            report::check(name, &outcome, remedy);
+            failed += usize::from(outcome.is_err());
+        }
+        if failed == 0 {
+            return Ok(());
+        }
+        Err(Error::new(
+            ErrorKind::Toolchain,
+            format!("{failed} of {} checks failed", CHECKS.len()),
+            "run the commands shown after each failed check",
+        ))
     }
-    if failed == 0 {
-        return Ok(());
-    }
-    Err(Error::new(
-        ErrorKind::Toolchain,
-        format!("{failed} of {} checks failed", CHECKS.len()),
-        "run the commands shown after each failed check",
-    ))
 }
 
 fn developer_directory() -> Result<String, String> {
@@ -124,10 +131,7 @@ fn rust_targets() -> Result<String, String> {
 }
 
 fn fusor_version() -> Result<String, String> {
-    at_least(
-        &output(Command::new("fusor").arg("--version"))?,
-        MINIMUM_FUSOR,
-    )
+    at_least(&output(project::fusor().arg("--version"))?, MINIMUM_FUSOR)
 }
 
 fn output(command: &mut Command) -> Result<String, String> {

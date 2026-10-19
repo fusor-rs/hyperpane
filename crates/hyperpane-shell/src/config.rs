@@ -53,13 +53,13 @@ impl RunConfig {
         #[command(
             name = "hyperpane-host",
             version,
-            about = "Show a fusor publication in a window"
+            about = "Show a fusor application in a window"
         )]
         struct Arguments {
-            /// The directory that `fusor build` published
+            /// The directory that `fusor build` wrote
             #[arg(required_unless_present = "url", conflicts_with = "url")]
-            publication: Option<PathBuf>,
-            /// Open this development server instead of a publication
+            directory: Option<PathBuf>,
+            /// Open this development server instead
             #[arg(long)]
             url: Option<String>,
             /// The window title
@@ -74,12 +74,12 @@ impl RunConfig {
         let source = arguments
             .url
             .map(Source::Url)
-            .or(arguments.publication.map(Source::Publication))
+            .or(arguments.directory.map(Source::Publication))
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Configuration,
                     "nothing to show",
-                    "pass a publication directory or --url <address>",
+                    "pass the directory that `fusor build` wrote, or --url <address>",
                 )
             })?;
         let scripts = arguments

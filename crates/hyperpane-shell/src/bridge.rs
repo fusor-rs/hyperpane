@@ -10,19 +10,20 @@ enum PageMessage {
     Report { report: Value },
 }
 
-/// One line of the host's standard output.
-#[derive(Serialize)]
+/// One line of the host's standard output; `docs/consumption.md` describes
+/// each event.
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "kebab-case")]
-pub(crate) enum HostEvent<'a> {
+pub enum HostEvent {
     Ready {
-        url: &'a str,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        generation: Option<&'a str>,
+        url: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        generation: Option<String>,
     },
     Report {
-        report: &'a Value,
+        report: Value,
     },
-    Error(&'a Error),
+    Error(Error),
 }
 
 pub(crate) fn emit(event: &HostEvent) {
@@ -35,10 +36,10 @@ pub(crate) fn emit(event: &HostEvent) {
 pub(crate) fn receive(message: &str) {
     match serde_json::from_str(message) {
         Ok(PageMessage::Report { report }) => {
-            emit(&HostEvent::Report { report: &report });
+            emit(&HostEvent::Report { report });
             std::process::exit(0);
         }
-        Err(error) => emit(&HostEvent::Error(&Error::new(
+        Err(error) => emit(&HostEvent::Error(Error::new(
             ErrorKind::WebView,
             format!("the page sent an unknown message: {error}"),
             "post messages of the documented shapes to window.ipc",

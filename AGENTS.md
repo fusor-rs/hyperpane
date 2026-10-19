@@ -14,14 +14,26 @@ it does; don't invent scope, features or options beyond the task.
   source, loopback listener, bridge, window and web view) and the
   `hyperpane-host` binary, which runs in a window on macOS and as the
   executable of an iOS app.
-- `crates/hyperpane-cli`: the `hyperpane` binary (`run`, `bundle`, `doctor`).
-  It builds the host with Cargo, assembles iOS bundles and drives the
-  simulator with `xcrun simctl`.
+- `crates/hyperpane-cli`: the `hyperpane` binary (`run`, `bundle`, `doctor`,
+  `upgrade`).
+  It builds the application with fusor and the host with Cargo, assembles iOS
+  bundles and drives the simulator with `xcrun simctl`. Each command is one
+  file in `src/cmd/` holding its arguments, its `run` and its logic; a part
+  that grows large becomes a child module (`cmd/run/simulator.rs`), and a
+  command reuses another's logic from there (`run --ios` calls `bundle`).
+  `cmd/mod.rs` declares the commands and the options they share. Outside
+  `cmd/` are only what several commands use: building the application
+  (`project.rs`) and the host (`host.rs`), output (`report.rs`) and running
+  tools (`tool.rs`).
 - `tests/consumer`: a separate workspace holding a small fusor application.
   `crates/hyperpane-cli/tests/consumer.rs` runs it through the CLI on macOS and
   in the iOS Simulator.
 - `docs/`: the host's output contract (`consumption.md`) and the iOS bundle
   (`ios.md`).
+- `install.sh` and `.github/workflows/release.yml`: the release archive and its
+  installer. `just archive` builds the archive, `just archive-check` installs
+  and checks it, and `just upgrade-check` checks `hyperpane upgrade` between two
+  builds; the workflow runs all three.
 
 Constraints that hold everywhere:
 
@@ -243,4 +255,5 @@ checks plainly.
 - Commit messages are a short imperative sentence in sentence case, no prefix.
 - Never add `Co-Authored-By`, "Generated with" or any other AI attribution to
   commits or pull requests.
-- Don't commit, push, tag or release unless asked.
+- Don't commit, push, tag or release unless asked. Releasing is described in
+  `CONTRIBUTING.md` and is done by the maintainer.

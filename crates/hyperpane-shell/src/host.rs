@@ -101,7 +101,7 @@ impl Host {
             match event {
                 Event::NewEvents(StartCause::Init) => {
                     if let Err(error) = self.open(target, proxy.clone()) {
-                        bridge::emit(&HostEvent::Error(&error));
+                        bridge::emit(&HostEvent::Error(error));
                         *control_flow = ControlFlow::ExitWithCode(1);
                     }
                 }
@@ -153,7 +153,7 @@ impl Host {
             return;
         };
         if let Err(error) = webview.reload() {
-            bridge::emit(&HostEvent::Error(&Error::new(
+            bridge::emit(&HostEvent::Error(Error::new(
                 ErrorKind::WebView,
                 format!("cannot reload the page: {error}"),
                 "restart the app",
@@ -186,8 +186,8 @@ fn web_view(
         .with_on_page_load_handler(move |event, url| {
             if matches!(event, PageLoadEvent::Finished) {
                 bridge::emit(&HostEvent::Ready {
-                    url: &url,
-                    generation: generation.as_deref(),
+                    url,
+                    generation: generation.clone(),
                 });
             }
         })
@@ -227,7 +227,7 @@ fn leaves_app(url: &str, origin: &str) -> bool {
 
 fn open_in_browser(url: &str) {
     if let Err(error) = webbrowser::open(url) {
-        bridge::emit(&HostEvent::Error(&Error::new(
+        bridge::emit(&HostEvent::Error(Error::new(
             ErrorKind::WebView,
             format!("cannot open {url} in the system browser: {error}"),
             "set a default web browser",

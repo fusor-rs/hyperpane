@@ -1,12 +1,14 @@
 [package]
 name = "hyperpane-shell"
-description = "The hyperpane host: a fusor publication in WKWebView on macOS and iOS"
+description = "The hyperpane host: a fusor application in WKWebView on macOS and iOS"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 readme = "../../README.md"
+keywords = ["fusor", "ios", "macos", "webview", "wasm"]
+categories = ["gui", "os::macos-apis", "wasm"]
 
 [[bin]]
 name = "hyperpane-host"

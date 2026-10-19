@@ -1,12 +1,14 @@
 [package]
 name = "hyperpane-cli"
-description = "The hyperpane command: run fusor publications as macOS and iOS apps"
+description = "The hyperpane command: run fusor applications as macOS and iOS apps"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 readme = "../../README.md"
+keywords = ["fusor", "ios", "macos", "simulator", "webview"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "hyperpane"
@@ -21,8 +23,12 @@ test = false
 [dependencies]
 hyperpane-shell.workspace = true
 clap.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

@@ -26,3 +26,7 @@ rustc-ice-*.txt
 # fusor build output
 dist
 .fusor
+.idea
+
+# IDE settings
+.idea/

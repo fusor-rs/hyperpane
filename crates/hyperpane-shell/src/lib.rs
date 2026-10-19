@@ -11,11 +11,11 @@ mod host;
 mod loopback;
 mod publication;
 
+pub use bridge::HostEvent;
 pub use config::{BUNDLE_CONFIG, DEFAULT_NAME, RunConfig, Source, read_script};
 pub use error::{Error, ErrorKind};
 pub use publication::{Origin, Publication};
 
-use bridge::HostEvent;
 use host::Host;
 use std::process::ExitCode;
 
@@ -26,6 +26,6 @@ pub fn start() -> ExitCode {
         Ok(host) => host.run(),
         Err(error) => error,
     };
-    bridge::emit(&HostEvent::Error(&error));
+    bridge::emit(&HostEvent::Error(error));
     ExitCode::FAILURE
 }

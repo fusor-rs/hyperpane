@@ -1,8 +1,9 @@
-use crate::{report, tool};
+use crate::tool;
 use hyperpane_shell::{Error, ErrorKind};
 use serde::Deserialize;
 use std::{
     collections::BTreeMap,
+    fmt,
     path::Path,
     process::{Child, Command, Stdio},
 };
@@ -27,6 +28,9 @@ struct Device {
 /// One iOS Simulator device, identified by its UDID.
 pub(crate) struct Simulator {
     udid: String,
+    name: String,
+    /// `iOS 27.1`
+    system: String,
 }
 
 impl Simulator {
@@ -47,21 +51,28 @@ impl Simulator {
             .filter_map(|(runtime, devices)| Some((ios_version(&runtime)?, devices)))
             .collect();
         runtimes.sort_by(|(newer, _), (older, _)| older.cmp(newer));
-        let mut devices: Vec<Device> = runtimes
+        let mut devices: Vec<(String, Device)> = runtimes
             .into_iter()
-            .flat_map(|(_, devices)| devices)
+            .flat_map(|(version, devices)| {
+                let system = format!("iOS {}", dotted(&version));
+                devices
+                    .into_iter()
+                    .map(move |device| (system.clone(), device))
+            })
             .collect();
         let chosen = match requested {
             Some(requested) => devices
                 .into_iter()
-                .find(|device| device.udid == requested || device.name == requested),
+                .find(|(_, device)| device.udid == requested || device.name == requested),
             None => {
-                devices.retain(|device| device.name.starts_with(IPHONE));
-                let booted = devices.iter().position(|device| device.state == BOOTED);
+                devices.retain(|(_, device)| device.name.starts_with(IPHONE));
+                let booted = devices
+                    .iter()
+                    .position(|(_, device)| device.state == BOOTED);
                 devices.into_iter().nth(booted.unwrap_or(0))
             }
         };
-        let device = chosen.ok_or_else(|| {
+        let (system, device) = chosen.ok_or_else(|| {
             Error::new(
                 ErrorKind::Simulator,
                 match requested {
@@ -71,11 +82,15 @@ impl Simulator {
                 "list the devices with `xcrun simctl list devices available`, or install a runtime with `xcodebuild -downloadPlatform iOS`",
             )
         })?;
-        report::step(&format!(
-            "using the {} simulator ({})",
-            device.name, device.udid
-        ));
-        Ok(Self { udid: device.udid })
+        Ok(Self {
+            udid: device.udid,
+            name: device.name,
+            system,
+        })
+    }
+
+    pub(crate) fn udid(&self) -> &str {
+        &self.udid
     }
 
     /// Boots the device if it is not running and waits until it is ready.
@@ -84,7 +99,6 @@ impl Simulator {
     }
 
     pub(crate) fn install(&self, bundle: &Path) -> Result<(), Error> {
-        report::step(&format!("installing {}", bundle.display()));
         let bundle = bundle.to_string_lossy();
         simctl(&["install", &self.udid, &bundle]).map(drop)
     }
@@ -121,6 +135,17 @@ fn simctl(arguments: &[&str]) -> Result<String, Error> {
         ErrorKind::Simulator,
         SIMCTL_REMEDY,
     )
+}
+
+impl fmt::Display for Simulator {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{} ({})", self.name, self.system)
+    }
+}
+
+fn dotted(version: &[u32]) -> String {
+    let parts: Vec<_> = version.iter().map(u32::to_string).collect();
+    parts.join(".")
 }
 
 /// `com.apple.CoreSimulator.SimRuntime.iOS-27-1` is iOS 27.1; any other
