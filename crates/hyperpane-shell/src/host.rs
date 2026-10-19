@@ -44,7 +44,7 @@ impl Served {
             Origin::CustomScheme => Ok(Self::Scheme(publication)),
             Origin::Loopback => {
                 let generation = publication.generation().to_owned();
-                let address = loopback::serve(publication)?;
+                let address = loopback::start(publication)?;
                 Ok(Self::Loopback {
                     origin: format!("http://{address}"),
                     generation,

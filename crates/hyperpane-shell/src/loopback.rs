@@ -1,3 +1,17 @@
+//! A small HTTP server inside the host, on this device's own 127.0.0.1, for
+//! fusor applications whose worker pools share memory.
+//!
+//! WebKit gives a page `SharedArrayBuffer` only when the page comes from an
+//! `http://` origin whose responses send the cross-origin isolation headers;
+//! on the `hyperpane://` scheme it stays undefined, on macOS and on iOS. fusor
+//! marks such applications with `.fusor-worker-headers.json`, and for them
+//! the host loads `http://127.0.0.1:<port>/` from this server instead of the
+//! scheme. Every other application never starts it.
+//!
+//! The server decides nothing about files: each request goes to
+//! [`Publication::respond`], the same answer the scheme gives, which also adds
+//! the isolation headers. Only this device can connect, and it runs for as
+//! long as the host does.
 use crate::{
     Error, ErrorKind,
     publication::{Asset, Publication},
@@ -10,10 +24,9 @@ use std::{
     thread,
 };
 
-/// Serves `publication` over HTTP on 127.0.0.1 and an ephemeral port, one
-/// thread per connection, for as long as the process lives. WebKit opens
-/// several connections at once, so they must not wait on each other.
-pub(crate) fn serve(publication: Publication) -> Result<SocketAddr, Error> {
+/// Listens on 127.0.0.1 at a port the system picks, serves `publication` in
+/// the background and returns the address to load.
+pub(crate) fn start(publication: Publication) -> Result<SocketAddr, Error> {
     let unavailable = |error: io::Error| {
         Error::new(
             ErrorKind::Loopback,
@@ -24,20 +37,28 @@ pub(crate) fn serve(publication: Publication) -> Result<SocketAddr, Error> {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(unavailable)?;
     let address = listener.local_addr().map_err(unavailable)?;
     let publication = Arc::new(publication);
-    thread::spawn(move || {
-        for connection in listener.incoming() {
-            let publication = Arc::clone(&publication);
-            thread::spawn(move || {
-                if let Err(error) = connection.and_then(|stream| answer(&stream, &publication)) {
-                    eprintln!("hyperpane-host: a loopback request failed: {error}");
-                }
-            });
-        }
-    });
+    thread::spawn(move || accept_connections(&listener, &publication));
     Ok(address)
 }
 
-fn answer(stream: &TcpStream, publication: &Publication) -> io::Result<()> {
+/// One thread per connection: WebKit opens several at once, and one slow
+/// request must not hold up the others.
+fn accept_connections(listener: &TcpListener, publication: &Arc<Publication>) {
+    for connection in listener.incoming() {
+        let publication = Arc::clone(publication);
+        thread::spawn(move || {
+            if let Err(error) =
+                connection.and_then(|stream| answer_one_request(&stream, &publication))
+            {
+                eprintln!("hyperpane-host: a loopback request failed: {error}");
+            }
+        });
+    }
+}
+
+/// Each connection carries one request and is then closed, so the server
+/// never has to track keep-alive connections.
+fn answer_one_request(stream: &TcpStream, publication: &Publication) -> io::Result<()> {
     let request = read_request(stream)?;
     write_response(stream, request.method(), &publication.respond(&request))
 }
@@ -94,7 +115,7 @@ fn write_response(mut stream: &TcpStream, method: &Method, response: &Asset) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::serve;
+    use super::start;
     use crate::publication::{
         Origin, Publication,
         tests::{MANIFEST, publish},
@@ -117,7 +138,7 @@ mod tests {
         );
         let publication = Publication::open(root.path()).unwrap();
         assert_eq!(publication.origin(), Origin::Loopback);
-        let address = serve(publication).unwrap();
+        let address = start(publication).unwrap();
         assert!(address.ip().is_loopback());
         let mut stream = TcpStream::connect(address).unwrap();
         stream
