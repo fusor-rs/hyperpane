@@ -37,7 +37,7 @@ impl Simulator {
     /// The device named or identified by `requested`; otherwise a booted
     /// iPhone, otherwise the first iPhone of the newest iOS runtime.
     pub(crate) fn select(requested: Option<&str>) -> Result<Self, Error> {
-        let listing = simctl(&["list", "devices", "available", "--json"])?;
+        let listing = capture(&mut simctl(&["list", "devices", "available", "--json"]))?;
         let list: DeviceList = serde_json::from_str(&listing).map_err(|error| {
             Error::new(
                 ErrorKind::Simulator,
@@ -95,26 +95,17 @@ impl Simulator {
 
     /// Boots the device if it is not running and waits until it is ready.
     pub(crate) fn boot(&self) -> Result<(), Error> {
-        simctl(&["bootstatus", &self.udid, "-b"]).map(drop)
+        capture(self.simctl(&["bootstatus"]).arg("-b")).map(drop)
     }
 
     pub(crate) fn install(&self, bundle: &Path) -> Result<(), Error> {
-        let bundle = bundle.to_string_lossy();
-        simctl(&["install", &self.udid, &bundle]).map(drop)
+        capture(self.simctl(&["install"]).arg(bundle)).map(drop)
     }
 
     /// Starts the app with its standard output piped to the returned process.
     pub(crate) fn launch(&self, bundle_id: &str) -> Result<Child, Error> {
-        let mut launch = Command::new("xcrun");
-        launch
-            .args([
-                "simctl",
-                "launch",
-                "--console",
-                "--terminate-running-process",
-            ])
-            .args([&self.udid, bundle_id])
-            .stdout(Stdio::piped());
+        let mut launch = self.simctl(&["launch", "--console", "--terminate-running-process"]);
+        launch.arg(bundle_id).stdout(Stdio::piped());
         launch.spawn().map_err(|error| {
             Error::new(
                 ErrorKind::Simulator,
@@ -125,16 +116,26 @@ impl Simulator {
     }
 
     pub(crate) fn terminate(&self, bundle_id: &str) -> Result<(), Error> {
-        simctl(&["terminate", &self.udid, bundle_id]).map(drop)
+        capture(self.simctl(&["terminate"]).arg(bundle_id)).map(drop)
+    }
+
+    /// `xcrun simctl <arguments> <udid>`: device subcommands take the device
+    /// after their options and before their own arguments.
+    fn simctl(&self, arguments: &[&str]) -> Command {
+        let mut command = simctl(arguments);
+        command.arg(&self.udid);
+        command
     }
 }
 
-fn simctl(arguments: &[&str]) -> Result<String, Error> {
-    tool::capture(
-        Command::new("xcrun").arg("simctl").args(arguments),
-        ErrorKind::Simulator,
-        SIMCTL_REMEDY,
-    )
+fn simctl(arguments: &[&str]) -> Command {
+    let mut command = Command::new("xcrun");
+    command.arg("simctl").args(arguments);
+    command
+}
+
+fn capture(command: &mut Command) -> Result<String, Error> {
+    tool::capture(command, ErrorKind::Simulator, SIMCTL_REMEDY)
 }
 
 impl fmt::Display for Simulator {
