@@ -1,0 +1,35 @@
+name: Check
+on: [push, pull_request, workflow_call]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # The only GitHub-hosted image with Xcode 27 and iOS 27 simulators.
+    runs-on: xcode-27
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: hyperpane
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hyperpane
+      # The consumer test builds fusor from this sibling checkout. Moving the
+      # pin also means refreshing tests/consumer/Cargo.lock.
+      - uses: actions/checkout@v4
+        with:
+          repository: fusor-rs/fusor
+          ref: a565bdfc98198561aceb56dc7de54f6efe7227cc
+          path: rust-front
+      - run: sudo xcode-select -s /Applications/Xcode_27.1.app/Contents/Developer
+      # `just msrv` runs `cargo +1.85`, which needs a toolchain named 1.85.
+      - run: rustup toolchain install 1.85 --profile minimal --target aarch64-apple-ios-sim
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: aarch64-apple-ios-sim, aarch64-apple-ios, wasm32-unknown-unknown
+      - uses: taiki-e/install-action@just
+      - run: just setup
+      - run: just check

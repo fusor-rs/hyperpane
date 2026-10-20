@@ -1,0 +1,144 @@
+name: Release
+# Publishing a GitHub release tagged vX.Y.Z runs Check, builds the Apple
+# silicon archive with its prebuilt hosts, installs it with install.sh, checks
+# that `hyperpane upgrade` moves an installation to a newer build,
+# attaches it to the release and publishes the crates to crates.io. Running the
+# workflow by hand only builds and tests the archive. See "Releasing" in
+# CONTRIBUTING.md.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two releases at once, and never cancel one halfway.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+
+  archive:
+    needs: check
+    # The simulator host needs Xcode 27's iOS SDK.
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo xcode-select -s /Applications/Xcode_27.1.app/Contents/Developer
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@just
+      - name: Read and validate the version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 |
+            jq -er '.packages[] | select(.name == "hyperpane-cli") | .version')
+          if [ "$EVENT_NAME" = release ] && [ "$RELEASE_TAG" != "v$version" ]; then
+            echo "::error::Release tag $RELEASE_TAG must match Cargo.toml version v$version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - run: just archive
+      - run: just archive-check
+      - run: just upgrade-check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hyperpane-aarch64-apple-darwin
+          path: target/release-archives/v${{ steps.version.outputs.version }}/*
+          if-no-files-found: error
+          compression-level: 0
+
+  attach:
+    if: github.event_name == 'release'
+    needs: archive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Attach the release archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  crates-io:
+    if: github.event_name == 'release'
+    needs: archive
+    # Packaging verifies that the crates build, and wry needs macOS to build.
+    runs-on: macos-15
+    # Holds the CARGO_REGISTRY_TOKEN secret. Add required reviewers to this
+    # environment to approve each release before it uploads.
+    environment: crates-io
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo publish --workspace --locked --dry-run
+      # Skip crates already on crates.io at this version, so a rerun finishes a
+      # release that stopped halfway; `cargo publish` refuses to republish.
+      - name: Publish unreleased crates
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          packages=$(cargo metadata --locked --no-deps --format-version 1 |
+            jq -r '.packages[] | select(.publish != []) | [.name, .version] | @tsv')
+          skip=()
+          remaining=0
+          while IFS=$'\t' read -r name version; do
+            index="$RUNNER_TEMP/$name-index.json"
+            status=$(curl --silent --show-error --output "$index" --write-out '%{http_code}' \
+              "https://index.crates.io/${name:0:2}/${name:2:2}/$name")
+            case "$status" in
+              200)
+                published=$(jq --slurp --arg version "$version" \
+                  'any(.[]; .vers == $version)' "$index")
+                if [ "$published" = true ]; then
+                  skip+=(--exclude "$name")
+                  continue
+                fi
+                ;;
+              404) ;;
+              *)
+                echo "::error::Registry lookup for $name failed with HTTP $status"
+                exit 1
+                ;;
+            esac
+            remaining=$((remaining + 1))
+          done <<< "$packages"
+          if [ "$remaining" -eq 0 ]; then
+            echo "Every workspace crate version is already published."
+          else
+            cargo publish --workspace --locked "${skip[@]}"
+          fi
+
+  # install.sh goes up last: its presence marks the release complete.
+  ready:
+    if: github.event_name == 'release'
+    needs: [attach, crates-io]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mark the release ready
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" install.sh --clobber --repo "$GITHUB_REPOSITORY"
